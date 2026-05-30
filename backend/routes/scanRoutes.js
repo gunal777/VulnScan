@@ -1,26 +1,14 @@
 const express = require('express');
-
+const Scan = require('../models/Scan');
 const router = express.Router();
+const scanController = require('../controllers/scanController');
 
-router.get('/', (req, res) => {
-    res.json({msg: "scans"})
-});
+router.get('/', scanController.getScans);
 
-router.post('/new', (req, res) => {
-    const {target, targetType, status, riskScore} = req.body;
+router.post('/new', scanController.newScan);
 
-    try {
-        const scan = await Scan.create({target, targetType, status, riskScore})
-        res.status(200).json
-    }
-});
+router.get('/:id', scanController.getScan);
 
-router.get('/:id', (req, res) => {
-    res.json({msg: "ok"})
-});
-
-router.delete('/:id', (req, res) => {
-    res.json({msg: "deleetyd"})
-});
+router.delete('/:id', scanController.deleteScan);
 
 module.exports = router;

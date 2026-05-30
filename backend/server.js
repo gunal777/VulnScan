@@ -15,16 +15,12 @@ app.use((req, res, next) => {
 
 app.use('/api/scans', scanRoutes);
 
-// moongoose.connect(process.env.MONGO_URI)
-//     .then(() => {
-//         app.listen(process.env.PORT || 3000, () => {
-//             console.log("listening and connected to the db", process.env.PORT);
-//         })
-//     })
-//     .catch((err) => {
-//         console.log(err);
-//     });
-
-app.listen(process.env.PORT || 3000, () => {
+moongoose.connect(process.env.MONGO_URI)
+    .then(() => {
+        app.listen(process.env.PORT || 3000, () => {
             console.log("listening and connected to the db", process.env.PORT);
         })
+    })
+    .catch((err) => {
+        console.log(err);
+    });

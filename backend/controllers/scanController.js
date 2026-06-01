@@ -1,5 +1,7 @@
 const Scan = require('../models/Scan');
 const mongoose = require('mongoose');
+const nmapScan = require('../services/nmapService');
+const validator = require('../services/validatorService');
 
 //get all scans
 const getScans = async (req, res) => {
@@ -10,10 +12,20 @@ const getScans = async (req, res) => {
 
 //add a new scan
 const newScan = async (req, res) => {
-    const { target, targetType, status, riskScore } = req.body;
+    const { target } = req.body;
+
+    const targetType = validator.detectTargetType(target);
+    const dangerousChars = validator.containsDangerousChars(target);
+
+    if(!targetType || dangerousChars) {
+        return res.json(400).json({error: 'not a valid target'});
+    }
 
     try {
-        const scan = await Scan.create({ target, targetType, status, riskScore });
+        const ports = await nmapScan(target);
+
+        const scan = await Scan.create({ target, targetType, ports });
+        
         res.status(200).json(scan);
     }
     catch (error) {

@@ -36,11 +36,14 @@ const scanSchema = new schema({
         default: "pending"
     },
 
-    ports: {
-        // port: Number,
-        // service: String,
-        // state: String
-    },
+    ports: [
+        {
+            _id: false,
+            port: Number,
+            state: String,
+            service: String
+        }
+    ],
 
     ssl: {
         // issuer: String,

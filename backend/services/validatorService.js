@@ -4,7 +4,7 @@ const isValidIP = (target) => {
     return net.isIP(target) !== 0;
 };
 
-const isValidDomain = (target) => {
+const isValidURL = (target) => {
     try {
         new URL(target);
         return true;
@@ -13,7 +13,7 @@ const isValidDomain = (target) => {
     }
 };
 
-const isValidURL = (target) => {
+const isValidDomain = (target) => {
     const regex =
         /^(?!-)[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
 
@@ -33,9 +33,6 @@ const containsDangerousChars = (target) => {
 };
 
 module.exports = {
-    isVailidIp,
-    isValidDomain,
-    isValidURL,
     detectTargetType,
     containsDangerousChars
 }

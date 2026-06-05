@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const nmapScan = require("../services/nmapService");
 const validator = require("../services/validatorService");
 const headerScan = require("../services/headerService");
+const sslScan = require("../services/sslService");
 
 //get all scans
 const getScans = async (req, res) => {
@@ -24,19 +25,31 @@ const newScan = async (req, res) => {
 
   try {
     const ports = await nmapScan(target);
-
     const headerReport = await headerScan(target, ports);
+
+    const hasHttps = ports.some(
+      (port) => port.port === 443 || (port.service || "").toLowerCase() === "https"
+    );
+
+    let sslReport = {ssl: null, findings: []};
+
+    if(hasHttps) {
+      sslReport = await sslScan(target);
+    }
 
     const scan = await Scan.create({
       target,
       targetType,
       status: "completed",
       ports,
-      findings: headerReport.findings,
+      ssl: sslReport.ssl,
+      findings: [...headerReport.findings, ...sslReport.findings],
     });
 
     res.status(200).json(scan);
-  } catch (error) {
+  }
+
+  catch (error) {
     res.status(400).json({ error: error.message });
   }
 };

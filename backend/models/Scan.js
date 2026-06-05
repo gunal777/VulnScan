@@ -62,10 +62,12 @@ const scanSchema = new schema(
     ],
 
     ssl: {
-      // issuer: String,
-      // validFrom: Date,
-      // validTo: Date,
-      // expiresInDays: Number
+      valid: Boolean,
+      issuer: String,
+      subject: String,
+      validFrom: Date,
+      validTo: Date,
+      expiresInDays: Number
     },
 
     findings: [findingSchema],

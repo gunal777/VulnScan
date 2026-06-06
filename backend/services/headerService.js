@@ -1,14 +1,57 @@
 const axios = require("axios");
 const https = require("https");
 
+const WAF_SIGNATURES = [
+  {
+    vendor: "Cloudflare",
+    indicators: ["cf-ray", "cf-mitigated", "cf-cache-status"],
+  },
+  {
+    vendor: "Akamai",
+    indicators: ["akamai-origin-hop", "x-akamai-transformed", "x-check-cacheable"],
+  },
+  {
+    vendor: "Imperva",
+    indicators: ["x-iinfo", "x-cdn"],
+  },
+  {
+    vendor: "Sucuri",
+    indicators: ["x-sucuri-id", "x-sucuri-cache"],
+  },
+  {
+    vendor: "AWS CloudFront",
+    indicators: ["x-amz-cf-id", "x-amz-cf-pop"],
+  },
+  {
+    vendor: "F5 BIG-IP",
+    indicators: ["x-wa-info", "x-cnection"],
+  },
+  {
+    vendor: "Barracuda",
+    indicators: ["x-barracuda-connect", "x-barracuda-start-time"],
+  },
+];
+
+const detectWAF = (headers) => {
+  for (const waf of WAF_SIGNATURES) {
+    const matched = waf.indicators.some((indicator) => headers[indicator]);
+    if (matched) {
+      return {
+        detected: true,
+        vendor: waf.vendor,
+      };
+    }
+  }
+
+  return { detected: false, vendor: null };
+};
+
 const headerScan = async (target, ports) => {
   const hasHttps = ports.some(
-    (port) => port.port === 443 || (port.service || "").toLowerCase() === "https"
-  );
+    (port) => port.port === 443 || (port.service || "").toLowerCase() === "https");
 
   const hasHttp = ports.some(
-    (port) => port.port === 80 || (port.service || "").toLowerCase() === "http"
-  );
+    (port) => port.port === 80 || (port.service || "").toLowerCase() === "http");
 
   if (!hasHttp && !hasHttps) {
     return { findings: [] };
@@ -28,45 +71,37 @@ const headerScan = async (target, ports) => {
 
     status = response.status;
     headers = response.headers;
-
-  }
-
-  catch (error) {
+  } catch (error) {
     if (error.response) {
       status = error.response.status;
       headers = error.response.headers;
-
-    }
-    else {
+    } else {
       return {
-        findings: [
-          {
-            source: "header-scan",
-            category: "Infrastructure",
-            title: "Connection Failed",
-            severity: "Info",
-            description: error.message,
-            recommendation: "Verify the target is reachable via HTTP/HTTPS.",
-          },
+        findings: [{
+          source: "header-scan",
+          category: "Infrastructure",
+          title: "Connection Failed",
+          severity: "Info",
+          description: error.message,
+          recommendation: "Verify the target is reachable via HTTP/HTTPS.",
+        },
         ],
       };
     }
   }
 
   const findings = [];
-  let wafBlocked = false;
 
-  // --- Infrastructure findings ---
+  // --- WAF ---
+  const waf = detectWAF(headers);
 
-  if (headers["cf-mitigated"]) {
-    wafBlocked = true;
+  if (waf.detected) {
     findings.push({
       source: "header-scan",
       category: "Infrastructure",
       title: "WAF Detected",
       severity: "Info",
-      description: "Cloudflare challenge protection detected.",
-      recommendation: "Target appears to be protected by a Web Application Firewall.",
+      description: `${waf.vendor} Web Application Firewall detected.`,
     });
   }
 
@@ -76,38 +111,18 @@ const headerScan = async (target, ports) => {
       category: "Infrastructure",
       title: "Access Restricted",
       severity: "Info",
-      description: "Server returned HTTP 403 Forbidden, Target may be protected by a WAF or access control mechanism.",
-    });
-  }
-
-  // If WAF intercepted the request, header analysis would be against the
-  // challenge page — not the real app. Mark as partial and bail early.
-  if (wafBlocked) {
-    findings.push({
-      source: "header-scan",
-      category: "Infrastructure",
-      title: "Partial Scan",
-      severity: "Info",
       description:
-        "WAF challenge page detected. Security header analysis skipped — " +
-        "results would reflect Cloudflare's response, not the actual application.",
+        "Server returned HTTP 403 Forbidden. Target may be protected by a WAF or access control.",
     });
-
-    return { findings };
   }
 
-  // --- Security headers (only reached if no WAF block) ---
+  // Security Headers 
 
   const securityChecklist = {
     "content-security-policy": {
-      severity: "High",
+      severity: "Medium",
       description: "Content-Security-Policy header is missing.",
       recommendation: "Implement a Content-Security-Policy header.",
-    },
-    "strict-transport-security": {
-      severity: "High",
-      description: "Strict-Transport-Security header is missing.",
-      recommendation: "Enable HSTS to enforce HTTPS.",
     },
     "x-frame-options": {
       severity: "Medium",
@@ -134,17 +149,45 @@ const headerScan = async (target, ports) => {
     }
   }
 
-  // --- Information disclosure ---
-
-  if (headers["server"] && !headers["server"].toLowerCase().includes("cloudflare")) {
+  // HSTS only makes sense over HTTPS
+  if (url.startsWith("https://") && !headers["strict-transport-security"]) {
     findings.push({
       source: "header-scan",
       category: "Headers",
-      title: "Server Header Disclosure",
-      severity: "Low",
-      description: `Server header reveals backend technology: ${headers["server"]}`,
-      recommendation: "Remove or obfuscate the Server header.",
+      title: "Missing strict-transport-security",
+      severity: "High",
+      description: "Strict-Transport-Security header is missing.",
+      recommendation: "Enable HSTS to enforce HTTPS.",
     });
+  }
+
+  // --- Information Disclosure ---
+
+  if (headers["server"]) {
+    const knownTechnologies = ["apache", "nginx", "iis", "tomcat", "jetty", "express"];
+    const server = headers["server"].toLowerCase();
+    const leaksTech = knownTechnologies.some((tech) => server.includes(tech));
+    const leaksVersion = /[0-9]/.test(headers["server"]);
+
+    if (leaksTech && leaksVersion) {
+      findings.push({
+        source: "header-scan",
+        category: "Headers",
+        title: "Server Technology & Version Disclosure",
+        severity: "Low",
+        description: `Server header exposes backend technology and version: ${headers["server"]}`,
+        recommendation: "Remove or obfuscate the Server header to hide version details.",
+      });
+    } else if (leaksTech) {
+      findings.push({
+        source: "header-scan",
+        category: "Headers",
+        title: "Server Technology Disclosure",
+        severity: "Info",
+        description: `Server header exposes backend technology: ${headers["server"]}`,
+        recommendation: "Remove or obfuscate the Server header.",
+      });
+    }
   }
 
   if (headers["x-powered-by"]) {
@@ -158,7 +201,6 @@ const headerScan = async (target, ports) => {
     });
   }
 
-  // Deprecated ALLOW-FROM in X-Frame-Options
   if (headers["x-frame-options"] && headers["x-frame-options"].toUpperCase().startsWith("ALLOW-FROM")) {
     findings.push({
       source: "header-scan",
@@ -167,40 +209,27 @@ const headerScan = async (target, ports) => {
       severity: "Medium",
       description:
         "ALLOW-FROM is ignored by all modern browsers, rendering clickjacking protection ineffective.",
-      recommendation:
-        "Replace with Content-Security-Policy frame-ancestors directive.",
+      recommendation: "Replace with Content-Security-Policy frame-ancestors directive.",
     });
   }
 
-  // Deprecated X-XSS-Protection
   if (headers["x-xss-protection"]) {
-    const xssValue = headers["x-xss-protection"].replace(/\s/g, ""); // Strip spaces for safety
-
-    // ONLY flag it if it's explicitly turned on using legacy parameters
+    const xssValue = headers["x-xss-protection"].replace(/\s/g, "");
     if (xssValue === "1" || xssValue.includes("1;mode=block")) {
       findings.push({
         source: "header-scan",
         category: "Headers",
         title: "Legacy X-XSS-Protection Filter Enabled",
         severity: "Low",
-        description: "X-XSS-Protection is active. This legacy browser feature is deprecated and can be weaponized by attackers to disable legitimate scripts.",
-        recommendation: "Change the header value to '0' to safely disable the legacy auditor, and rely entirely on your Content-Security-Policy instead."
+        description:
+          "X-XSS-Protection is active. This legacy browser feature is deprecated and can be weaponized by attackers to disable legitimate scripts.",
+        recommendation:
+          "Change the header value to '0' to safely disable the legacy auditor, and rely entirely on your Content-Security-Policy instead.",
       });
     }
   }
 
   return { status, findings };
 };
-
-const ports = [
-  { port: 80, state: "open", service: "http" },
-  { port: 443, state: "open", service: "https" },
-];
-
-// (async () => {
-//   const result = await headerScan("github.com", ports);
-//   console.log("\nFINAL RESULT:");
-//   console.dir(result, { depth: null });
-// })();
 
 module.exports = headerScan;

@@ -4,6 +4,7 @@ const nmapScan = require("../services/nmapService");
 const validator = require("../services/validatorService");
 const headerScan = require("../services/headerService");
 const sslScan = require("../services/sslService");
+const calculateRiskScore = require("../services/scoringService");
 
 //get all scans
 const getScans = async (req, res) => {
@@ -37,13 +38,18 @@ const newScan = async (req, res) => {
       sslReport = await sslScan(target);
     }
 
+    const findings = [ ...headerReport.findings, ...sslReport.findings];
+
+    const riskScore = calculateRiskScore(findings);
+
     const scan = await Scan.create({
       target,
       targetType,
       status: "completed",
       ports,
       ssl: sslReport.ssl,
-      findings: [...headerReport.findings, ...sslReport.findings],
+      findings,
+      riskScore,
     });
 
     res.status(200).json(scan);

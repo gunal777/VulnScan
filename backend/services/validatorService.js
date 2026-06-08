@@ -28,7 +28,7 @@ const detectTargetType = (target) => {
 };
 
 const containsDangerousChars = (target) => {
-  return /[;&|`$<>]/.test(target);
+  return /[;|`$<>]/.test(target);
 };
 
 module.exports = {

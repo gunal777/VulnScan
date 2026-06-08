@@ -17,8 +17,8 @@ const calculateRiskScore = (findings) => {
 
   //cap findings to exact limits
   const lowScore = Math.min(counts.Low * 5, 20);
-  const mediumScore = Math.min(counts.Medium * 15, 50);
-  const highScore = Math.min(counts.High * 25, 80);
+  const mediumScore = Math.min(counts.Medium * 10, 40);
+  const highScore = Math.min(counts.High * 20, 60);
   const criticalScore = Math.min(counts.Critical * 30, 100);
 
   // adding all and enforce a maximum cap of 100

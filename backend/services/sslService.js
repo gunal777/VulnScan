@@ -28,6 +28,12 @@ const createTLSConnection = (target) => {
 };
 
 const sslScan = async (target) => {
+   try {
+    const parsed = new URL(target.includes("://") ? target : `https://${target}`);
+    target = parsed.hostname;
+  } 
+  catch {}
+
   let cert;
 
   try {

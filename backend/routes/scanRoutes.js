@@ -3,12 +3,14 @@ const Scan = require('../models/Scan');
 const router = express.Router();
 const scanController = require('../controllers/scanController');
 
-router.get('/', scanController.getScans);
+router.get('/recent', scanController.getRecentScans);
+
+router.get('/target/:target', scanController.getScanByTarget);
 
 router.post('/new', scanController.newScan);
 
-router.get('/:id', scanController.getScan);
+router.get('/report/:id', scanController.getScanById);
 
-router.delete('/:id', scanController.deleteScan);
+router.delete('/report/:id', scanController.deleteScan);
 
 module.exports = router;

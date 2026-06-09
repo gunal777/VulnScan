@@ -97,10 +97,20 @@ const getScanById = async (req, res) => {
 
 //get scan by target name 
 const getScanByTarget = async (req, res) => {
-  let target = req.params.target;
+  try {
+    const searchTarget = req.query.q;
+    if(!searchTarget) return res.status(400).json({error: "Search query is required"});
 
+    const result = await Scan.find({ target: {$regex: q, $options: "i"}})
+    .select("_id target targetType riskScore createdAt").limit(10);
 
-}
+    res.json(results);
+  }
+
+  catch (error) {
+    res.status(400).json({error: error.message});
+  }
+};
 
 module.exports = {
   getRecentScans,

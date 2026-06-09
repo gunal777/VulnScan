@@ -5,7 +5,7 @@ const scanController = require('../controllers/scanController');
 
 router.get('/recent', scanController.getRecentScans);
 
-router.get('/target/:target', scanController.getScanByTarget);
+router.get('/search', scanController.getScanByTarget);
 
 router.post('/new', scanController.newScan);
 

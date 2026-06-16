@@ -3,9 +3,15 @@ const moongoose = require("mongoose");
 const dotenv = require("dotenv");
 const scanRoutes = require("./routes/scanRoutes");
 const morgan = require('morgan');
+const cors = require('cors');
 dotenv.config();
 
 const app = express();
+
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true
+}));
 
 app.use(express.json());
 

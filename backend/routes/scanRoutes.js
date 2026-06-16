@@ -11,6 +11,6 @@ router.post('/new', scanController.newScan);
 
 router.get('/report/:id', scanController.getScanById);
 
-router.delete('/report/:id', scanController.deleteScan);
+router.delete('/delete/:id', scanController.deleteScan);
 
 module.exports = router;

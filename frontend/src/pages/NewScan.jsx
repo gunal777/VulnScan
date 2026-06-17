@@ -18,9 +18,11 @@ const NewScan = () => {
       const response = await scanAPI.createScan(target);
       const scanData = response.data;
 
-      setSearchResults(scanData);
+      setSearchResults((prev) => [scanData, ...prev]);
+
       navigate(`/scans/${scanData._id}`);
     }
+
     catch(error) {
       console.error("Scan pipeline error:", error.message);
     }

@@ -30,22 +30,27 @@ const formatDate = (dateStr) => {
 };
 
 const RecentScans = () => {
-  const { searchResults, setSearchResults } = useScan();
+  const { searchResults, removeScan } = useScan();
+  const { deletingId, setDeletingId } = useState();
 
   const handleDelete = async (e, id) => {
     e.preventDefault();
-    
+
     if (!window.confirm("Are you sure you want to delete this scan record?")) return;
 
+    setDeletingId(id);
     try {
       await scanAPI.deleteScan(id);
 
-      setSearchResults((prevResults) => prevResults.filter((scan) => scan._id !== id));
+      removeScan(id);
 
       console.log(`Scan instance ${id} wiped successfully.`);
     }
-    catch(error){
+    catch (error) {
       console.error("Failed to execute delete sequence:", error.message);
+    }
+    finally {
+      setDeletingId(null);
     }
   };
 
@@ -156,6 +161,7 @@ const RecentScans = () => {
 
               <button
                 className="delete-btn"
+                disabled={deletingId === element._id}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -163,7 +169,14 @@ const RecentScans = () => {
                 }}
                 title="Delete scan"
               >
-                <Trash2 size={16} />
+                {deletingId === element._id ? (
+                  <>
+                    <span className="delete-spinner"></span>
+                    Deleting...
+                  </>
+                ) : (
+                  <Trash2 size={16} />
+                )}
               </button>
             </Link>
           ))}

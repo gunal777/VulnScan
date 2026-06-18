@@ -4,6 +4,7 @@ import NewScan from "./pages/NewScan";
 import Dashboard from "./pages/Dashboard";
 import ScanDetails from "./pages/ScanDetails";
 import RecentScans from "./pages/RecentScans";
+import PageNotFound from "./pages/PageNotFound";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import "./App.css";
@@ -19,6 +20,8 @@ function AppRoutes() {
         <Route path="/scans/:id" element={<ScanDetails />} />
 
         <Route path="/scans/recent" element={<RecentScans />} />
+
+        <Route path="/:random" element={<PageNotFound />} />
       </Routes>
     </div>
   );

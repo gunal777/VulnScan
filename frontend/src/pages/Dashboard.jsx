@@ -1,5 +1,4 @@
-import { useEffect, useMemo } from "react";
-import scanAPI from "../services/api";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import useScan from "../hooks/useScan";
 import { motion } from "framer-motion";
@@ -27,28 +26,10 @@ import {
 } from "recharts";
 
 const Dashboard = () => {
-  const { loading, setLoading, setSearchResults, searchResults } = useScan();
+  const { loading, searchResults } = useScan();
 
-  useEffect(() => {
-    async function getRecents() {
-      try {
-        if(searchResults.length > 0) return;
 
-        setLoading(true);
-        const response = await scanAPI.getRecentScans();
-        setSearchResults(response.data);
-      }
-      catch (error) {
-        console.error("Scan pipeline error:", error.message);
-      }
-      finally {
-        setLoading(false);
-      }
-    }
-    getRecents();
-  }, [])
-
-  // ── Derived KPI computations ──────────────────────────────────
+  // calculations
   const totalScans = searchResults.length;
 
   const avgRiskScore = useMemo(() => {
@@ -85,7 +66,7 @@ const Dashboard = () => {
     });
   }, [searchResults]);
 
-  // ── Chart data ────────────────────────────────────────────────
+  //----chart data------
   const riskTrendData = useMemo(() => {
     return [...searchResults]
       .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))

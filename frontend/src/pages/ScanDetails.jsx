@@ -1,4 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import scanAPI from "../services/api";
 import useScan from "../hooks/useScan";
 import { motion } from "framer-motion";
 import {
@@ -51,22 +53,83 @@ const ScanDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { searchResults } = useScan();
+  const { searchResults, setSearchResults } = useScan();
 
-  const localReport = searchResults.find((scan) => scan._id === id);
+  const cachedReport = searchResults.find(
+    (scan) => scan._id === id
+  );
 
-  if (!localReport) {
+  const [localReport, setLocalReport] = useState(
+    cachedReport || null
+  );
+
+  const [loading, setLoading] = useState(
+    !cachedReport
+  );
+
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    if (cachedReport) {
+      setLocalReport(cachedReport);
+      setLoading(false);
+      return;
+    }
+
+    const fetchScan = async () => {
+      try {
+        setLoading(true);
+
+        const response = await scanAPI.getScanById(id);
+
+        setLocalReport(response.data);
+
+        setSearchResults((prev) => {
+          const exists = prev.some(
+            (scan) => scan._id === response.data._id
+          );
+
+          if (exists) return prev;
+
+          return [response.data, ...prev];
+        });
+      } catch (error) {
+        console.error(error);
+        setNotFound(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchScan();
+  }, [id, cachedReport, setSearchResults]);
+
+  if (loading) {
+    return (
+      <div className="empty-state">
+        <h3>Loading Report...</h3>
+        <p>Fetching scan details from the server.</p>
+      </div>
+    );
+  }
+
+  if (notFound || !localReport) {
     return (
       <div className="not-found-container">
         <div className="not-found-icon">
           <AlertCircle size={28} />
         </div>
-        <h3>Report not found in active cache</h3>
+
+        <h3>Scan Report Not Found</h3>
+
         <p>
-          The scan report you're looking for may have expired or hasn't been
-          loaded yet. Return to the dashboard to browse available scans.
+          The requested scan does not exist or may have been deleted.
         </p>
-        <button className="not-found-btn" onClick={() => navigate("/")}>
+
+        <button
+          className="not-found-btn"
+          onClick={() => navigate("/")}
+        >
           <ArrowLeft size={16} />
           Back to Dashboard
         </button>
@@ -264,13 +327,12 @@ const ScanDetails = () => {
                   </td>
                   <td>
                     <span
-                      className={`port-state-badge ${
-                        port.state === "open"
+                      className={`port-state-badge ${port.state === "open"
                           ? "open"
                           : port.state === "filtered"
-                          ? "filtered"
-                          : "closed"
-                      }`}
+                            ? "filtered"
+                            : "closed"
+                        }`}
                     >
                       {port.state}
                     </span>
@@ -337,8 +399,8 @@ const ScanDetails = () => {
                         sslHealthPercent > 50
                           ? "var(--success)"
                           : sslHealthPercent > 20
-                          ? "var(--warning)"
-                          : "var(--danger)",
+                            ? "var(--warning)"
+                            : "var(--danger)",
                     }}
                   />
                 </div>
@@ -368,9 +430,8 @@ const ScanDetails = () => {
                   {finding.title || finding.name || "Untitled Finding"}
                 </span>
                 <span
-                  className={`severity-badge ${
-                    finding.severity?.toLowerCase() || "info"
-                  }`}
+                  className={`severity-badge ${finding.severity?.toLowerCase() || "info"
+                    }`}
                 >
                   {finding.severity || "Info"}
                 </span>
@@ -381,10 +442,10 @@ const ScanDetails = () => {
               {finding.description && (
                 <p className="finding-description">{finding.description}</p>
               )}
-              {finding.remediation && (
+              {finding.recommendation && (
                 <div className="finding-remediation">
                   <div className="remediation-label">Recommendation</div>
-                  <div className="remediation-text">{finding.remediation}</div>
+                  <div className="remediation-text">{finding.recommendation}</div>
                 </div>
               )}
             </div>

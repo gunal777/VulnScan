@@ -16,7 +16,8 @@ const statusMessages = [
 
 const NewScan = () => {
   const [target, setTarget] = useState("");
-  const { loading, setLoading, setSearchResults } = useScan();
+  const [isCreatingScan, setIsCreatingScan] = useState(false);
+  const { addScan } = useScan();
   const navigate = useNavigate();
 
   const [targetType, setTargetType] = useState("domain");
@@ -27,30 +28,34 @@ const NewScan = () => {
     if (!target) return;
 
     try {
-      setLoading(true);
+      setIsCreatingScan(true);
 
       const response = await scanAPI.createScan(target);
       const scanData = response.data;
 
-      setSearchResults((prev) => [scanData, ...prev]);
+      addScan(scanData);
+
+      setTarget("");
 
       navigate(`/scans/${scanData._id}`);
     } catch (error) {
       console.error("Scan pipeline error:", error.message);
     } finally {
-      setLoading(false);
+      setIsCreatingScan(false);
     }
   };
 
   useEffect(() => {
-    if (!loading) return;
+    if (!isCreatingScan) return;
+
+    setStatusIndex(0);
 
     const interval = setInterval(() => {
       setStatusIndex((prev) => (prev + 1) % statusMessages.length);
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [loading]);
+  }, [isCreatingScan]);
 
   const placeholders = {
     domain: "e.g. example.com",
@@ -72,7 +77,7 @@ const NewScan = () => {
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
       >
-        {!loading ? (
+        {!isCreatingScan ? (
           <>
             <div className="newscan-header">
               <div className="newscan-icon">
@@ -93,7 +98,7 @@ const NewScan = () => {
                   type="button"
                 >
                   {typeIcons[type]}
-                  {type === "ip" ? "IP" : type.charAt(0).toUpperCase() + type.slice(1)}
+                  {type === "ip" ? " IP" : " "+type.charAt(0).toUpperCase() + type.slice(1)}
                 </button>
               ))}
             </div>
@@ -109,7 +114,7 @@ const NewScan = () => {
               <motion.button
                 className="scan-submit-btn"
                 type="submit"
-                disabled={loading || !target}
+                disabled={isCreatingScan || !target}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >

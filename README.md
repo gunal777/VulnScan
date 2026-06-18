@@ -114,7 +114,7 @@ VulnScan/
 ### Clone Repository
 
 ```bash
-git clone https://github.com/your-username/VulnScan.git
+git clone https://github.com/gunal777/VulnScan.git
 cd VulnScan
 ```
 

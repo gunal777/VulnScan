@@ -1,6 +1,33 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
+import { Search, ArrowDownWideNarrow, ShieldAlert, Trash2, FileSearch } from "lucide-react";
 import useScan from "../hooks/useScan";
 import scanAPI from "../services/api";
+
+const getRiskClass = (score) => {
+  if (score <= 20) return "low";
+  if (score <= 50) return "medium";
+  if (score <= 80) return "high";
+  return "critical";
+};
+
+const getRiskLabel = (score) => {
+  if (score <= 20) return "Low";
+  if (score <= 50) return "Medium";
+  if (score <= 80) return "High";
+  return "Critical";
+};
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return "—";
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
 
 const RecentScans = () => {
   const { searchResults, setSearchResults } = useScan();
@@ -22,40 +49,127 @@ const RecentScans = () => {
     }
   };
 
-  return (
-    <div className="recent-scans-container" style={{ padding: "1rem" }}>
-      <h2>Recent System Scans</h2>
-      
-      {searchResults.map((element) => (
-        <div 
-          key={element._id} 
-          className="scan-card" 
-          style={{ border: "1px solid #ccc", padding: "1rem", marginBottom: "0.5rem", borderRadius: "6px" }}
-        >
-          <Link to={`/scans/${element._id}`} style={{ textDecoration: "none", color: "inherit", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <h3>{element.target}</h3>
-              <p style={{ margin: 0, color: "#666" }}>Type: {element.targetType}</p>
-            </div>
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('date');
 
-            <button 
-              onClick={(e) => handleDelete(e, element._id)}
-              style={{
-                background: "#ff4d4f",
-                color: "white",
-                border: "none",
-                padding: "0.5rem 1rem",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontWeight: "bold"
-              }}
-            >
-              Delete
-            </button>
-          </Link>
+  const filtered = searchResults
+    .filter((element) =>
+      element.target.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (sortBy === "risk") {
+        return (b.riskScore ?? 0) - (a.riskScore ?? 0);
+      }
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+    >
+      {/* Page Header */}
+      <div className="page-header">
+        <h1>Recent Scans</h1>
+        <p>Browse and manage all vulnerability scan records</p>
+      </div>
+
+      {/* Controls: Search + Sort */}
+      <div className="scans-controls">
+        <div className="search-input-wrapper">
+          <Search className="search-icon" />
+          <input
+            className="search-input"
+            type="text"
+            placeholder="Search targets…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
-      ))}
-    </div>
+
+        <button
+          className={`sort-btn${sortBy === "date" ? " active" : ""}`}
+          onClick={() => setSortBy("date")}
+        >
+          <ArrowDownWideNarrow size={16} />
+          Sort by Date
+        </button>
+
+        <button
+          className={`sort-btn${sortBy === "risk" ? " active" : ""}`}
+          onClick={() => setSortBy("risk")}
+        >
+          <ShieldAlert size={16} />
+          Sort by Risk
+        </button>
+      </div>
+
+      {/* Empty State */}
+      {filtered.length === 0 ? (
+        <div className="empty-state">
+          <FileSearch className="empty-state-icon" />
+          <h3>No scans found</h3>
+          <p>
+            {searchQuery
+              ? "No results match your search. Try a different query."
+              : "You haven't run any scans yet. Start a new scan to see results here."}
+          </p>
+        </div>
+      ) : (
+        /* Scans Table */
+        <div className="scans-table">
+          <div className="scans-table-header">
+            <span>Target</span>
+            <span>Type</span>
+            <span>Scan Date</span>
+            <span>Risk Score</span>
+            <span>Findings</span>
+            <span>Actions</span>
+          </div>
+
+          {filtered.map((element) => (
+            <Link
+              key={element._id}
+              to={`/scans/${element._id}`}
+              className="scan-table-row"
+            >
+              <div className="scan-target-cell">
+                <span className="scan-target-name">{element.target}</span>
+                <span className="scan-target-type">{element.targetType}</span>
+              </div>
+
+              <span className="scan-cell">{element.targetType}</span>
+
+              <span className="scan-cell">{formatDate(element.createdAt)}</span>
+
+              <span className="scan-cell">
+                <span className={`risk-badge ${getRiskClass(element.riskScore ?? 0)}`}>
+                  <span className="risk-dot"></span>
+                  {getRiskLabel(element.riskScore ?? 0)} ({element.riskScore ?? 0})
+                </span>
+              </span>
+
+              <span className="scan-cell findings-count">
+                {element.findings ? element.findings.length : 0}
+              </span>
+
+              <button
+                className="delete-btn"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleDelete(e, element._id);
+                }}
+                title="Delete scan"
+              >
+                <Trash2 size={16} />
+              </button>
+            </Link>
+          ))}
+        </div>
+      )}
+    </motion.div>
   );
 };
 

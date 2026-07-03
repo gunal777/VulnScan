@@ -15,7 +15,7 @@ const scanAPI = {
   },
 
   createScan(target) {
-    return api.post("/scans/new", {target});
+    return api.post("/scans/new", { target });
   },
 
   deleteScan(id) {
@@ -24,7 +24,13 @@ const scanAPI = {
 
   searchScan(searchQuery) {
     return api.get(`/scans/search?q=${searchQuery}`);
-  }
+  },
+
+  downloadReport(id) {
+    return api.get(`/report/${id}/export`, {
+      responseType: "blob",
+    });
+  },
 }
 
 export default scanAPI;

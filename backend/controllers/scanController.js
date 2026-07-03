@@ -2,7 +2,7 @@ const Scan = require("../models/Scan");
 const mongoose = require("mongoose");
 const validator = require("../services/validatorService");
 const scanService = require("../services/scanService");
-const generatePDFReport = require("../utils/pdfGenerator");
+const exportScanReport = require("../utils/pdfGenerator");
 
 //get all scans
 const getRecentScans = async (req, res) => {
@@ -114,6 +114,7 @@ const getScanByTarget = async (req, res) => {
 };
 
 const getReport = async (req, res) => {
+  console.log("getReport controller hit");
   const id = req.params.id;
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -137,7 +138,7 @@ const getReport = async (req, res) => {
       `attachment; filename=vulnscan-report-${scan.target}.pdf`
     );
     
-    generatePDFReport(scan, res);
+    exportScanReport(scan, res);
   }
   catch (error) {
     res.status(500).json({ error: error.message })

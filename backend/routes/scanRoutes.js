@@ -9,9 +9,9 @@ router.get('/search', scanController.getScanByTarget);
 
 router.post('/new', scanController.newScan);
 
-router.get('/report/:id', scanController.getScanById);
+router.get('/report/:id/export', scanController.getReport);
 
-router.get('/report/:id/export', )
+router.get('/report/:id', scanController.getScanById);
 
 router.delete('/delete/:id', scanController.deleteScan);
 

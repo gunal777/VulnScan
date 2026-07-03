@@ -123,13 +123,23 @@ const getReport = async (req, res) => {
   try {
     const scan = await Scan.findById(id);
 
-    if(!scan) {
+    if (!scan) {
       return res.status(404).json({ error: "no such document" });
     }
 
+    res.setHeader(
+      "Content-Type",
+      "application/pdf"
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=vulnscan-report-${scan.target}.pdf`
+    );
+    
     generatePDFReport(scan, res);
   }
-  catch(error) {
+  catch (error) {
     res.status(500).json({ error: error.message })
   }
 };

@@ -2,6 +2,7 @@ const Scan = require("../models/Scan");
 const mongoose = require("mongoose");
 const validator = require("../services/validatorService");
 const scanService = require("../services/scanService");
+const generatePDFReport = require("../utils/pdfGenerator");
 
 //get all scans
 const getRecentScans = async (req, res) => {
@@ -44,7 +45,7 @@ const newScan = async (req, res) => {
   }
 
   catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 };
 
@@ -99,16 +100,37 @@ const getScanById = async (req, res) => {
 const getScanByTarget = async (req, res) => {
   try {
     const searchTarget = req.query.q;
-    if(!searchTarget) return res.status(400).json({error: "Search query is required"});
+    if (!searchTarget) return res.status(400).json({ error: "Search query is required" });
 
-    const result = await Scan.find({ target: {$regex: q, $options: "i"}})
-    .select("_id target targetType riskScore createdAt").limit(10);
+    const result = await Scan.find({ target: { $regex: q, $options: "i" } })
+      .select("_id target targetType riskScore createdAt").limit(10);
 
     res.json(results);
   }
 
   catch (error) {
-    res.status(400).json({error: error.message});
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getReport = async (req, res) => {
+  const id = req.params.id;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(404).json({ error: "no such document" });
+  }
+
+  try {
+    const scan = await Scan.findById(id);
+
+    if(!scan) {
+      return res.status(404).json({ error: "no such document" });
+    }
+
+    generatePDFReport(scan, res);
+  }
+  catch(error) {
+    res.status(500).json({ error: error.message })
   }
 };
 
@@ -118,4 +140,5 @@ module.exports = {
   newScan,
   getScanById,
   getScanByTarget,
+  getReport
 };

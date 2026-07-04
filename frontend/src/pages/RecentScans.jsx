@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Search, ArrowDownWideNarrow, ShieldAlert, Trash2, FileSearch } from "lucide-react";
@@ -31,7 +31,30 @@ const formatDate = (dateStr) => {
 
 const RecentScans = () => {
   const { searchResults, removeScan } = useScan();
-  const { deletingId, setDeletingId } = useState();
+  const [deletingId, setDeletingId] = useState(null);
+  const [displayedScans, setDisplayedScans] = useState(searchResults);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('date');
+
+  useEffect(() => {
+    setDisplayedScans(searchResults);
+  }, [searchResults]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const query = searchQuery.trim();
+
+      if (query === "") {
+        setDisplayedScans(searchResults);
+        return;
+      }
+
+      handleSearch(query);
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, searchResults]);
 
   const handleDelete = async (e, id) => {
     e.preventDefault();
@@ -41,9 +64,8 @@ const RecentScans = () => {
     setDeletingId(id);
     try {
       await scanAPI.deleteScan(id);
-
       removeScan(id);
-
+      setDisplayedScans(prev => prev.filter(scan => scan._id !== id));
       console.log(`Scan instance ${id} wiped successfully.`);
     }
     catch (error) {
@@ -54,19 +76,24 @@ const RecentScans = () => {
     }
   };
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('date');
+  const handleSearch = async (query) => {
+    try {
+      const response = await scanAPI.searchScan(query);
+      setDisplayedScans(response.data);
 
-  const filtered = searchResults
-    .filter((element) =>
-      element.target.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-    .sort((a, b) => {
-      if (sortBy === "risk") {
-        return (b.riskScore ?? 0) - (a.riskScore ?? 0);
-      }
-      return new Date(b.createdAt) - new Date(a.createdAt);
-    });
+    }
+    catch (error) {
+      console.error("Search Failed: ", error);
+      setDisplayedScans([]);
+    }
+  };
+
+  const filtered = [...displayedScans || []].sort((a, b) => {
+    if (sortBy === "risk") {
+      return (b.riskScore ?? 0) - (a.riskScore ?? 0);
+    }
+    return new Date(b.createdAt) - new Date(a.createdAt);
+  });
 
   return (
     <motion.div
@@ -74,13 +101,11 @@ const RecentScans = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
     >
-      {/* Page Header */}
       <div className="page-header">
         <h1>Recent Scans</h1>
         <p>Browse and manage all vulnerability scan records</p>
       </div>
 
-      {/* Controls: Search + Sort */}
       <div className="scans-controls">
         <div className="search-input-wrapper">
           <Search className="search-icon" />
@@ -110,7 +135,6 @@ const RecentScans = () => {
         </button>
       </div>
 
-      {/* Empty State */}
       {filtered.length === 0 ? (
         <div className="empty-state">
           <FileSearch className="empty-state-icon" />
@@ -122,7 +146,6 @@ const RecentScans = () => {
           </p>
         </div>
       ) : (
-        /* Scans Table */
         <div className="scans-table">
           <div className="scans-table-header">
             <span>Target</span>
@@ -144,7 +167,9 @@ const RecentScans = () => {
                 <span className="scan-target-type">{element.targetType}</span>
               </div>
 
-              <span className="scan-cell">{element.targetType}</span>
+              <span className="scan-cell" style={{ textTransform: 'uppercase', fontSize: '0.72rem', letterSpacing: '0.5px', fontWeight: '500' }}>
+                {element.targetType}
+              </span>
 
               <span className="scan-cell">{formatDate(element.createdAt)}</span>
 

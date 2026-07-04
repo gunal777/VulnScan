@@ -72,6 +72,11 @@ const scanSchema = new schema(
 
     findings: [findingSchema],
 
+    totalFindings: {
+      type: Number,
+      default: 0,
+    },
+
     riskScore: {
       type: Number,
       default: 0,

@@ -31,6 +31,8 @@ const newScan = async (req, res) => {
   try {
     const { status, ports, ssl, findings, riskScore } = await scanService(target);
 
+    const totalFindings = findings.length;
+
     const scan = await Scan.create({
       target,
       targetType,
@@ -38,6 +40,7 @@ const newScan = async (req, res) => {
       ports,
       ssl,
       findings,
+      totalFindings,
       riskScore,
     });
 
@@ -99,13 +102,15 @@ const getScanById = async (req, res) => {
 //get scan by target name 
 const getScanByTarget = async (req, res) => {
   try {
-    const searchTarget = req.query.q;
+    const searchTarget = req.query.q?.trim();
     if (!searchTarget) return res.status(400).json({ error: "Search query is required" });
 
-    const result = await Scan.find({ target: { $regex: q, $options: "i" } })
-      .select("_id target targetType riskScore createdAt").limit(10);
+    const escapedQuery = searchTarget.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-    res.json(results);
+    const result = await Scan.find({ target: { $regex: searchTarget, $options: "i" } })
+      .select("_id target targetType riskScore createdAt totalFindings").sort({ createdAt: -1 }).limit(10);
+
+    res.status(200).json(result);
   }
 
   catch (error) {
@@ -137,7 +142,7 @@ const getReport = async (req, res) => {
       "Content-Disposition",
       `attachment; filename=vulnscan-report-${scan.target}.pdf`
     );
-    
+
     exportScanReport(scan, res);
   }
   catch (error) {

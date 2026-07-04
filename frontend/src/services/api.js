@@ -23,7 +23,7 @@ const scanAPI = {
   },
 
   searchScan(searchQuery) {
-    return api.get(`/scans/search?q=${searchQuery}`);
+    return api.get(`/scans/search?q=${encodeURIComponent(searchQuery)}`);
   },
 
   downloadReport(id) {

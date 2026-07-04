@@ -193,9 +193,9 @@ const Dashboard = () => {
           <div className="metric-icon accent">
             <BarChart3 size={20} />
           </div>
-          <div className="metric-label">Total Scans</div>
+          <div className="metric-label">Total</div>
           <div className="metric-value">{totalScans}</div>
-          <div className="metric-sub">all time</div>
+          <div className="metric-sub">Scans loaded</div>
         </div>
 
         <div className="metric-card warning">

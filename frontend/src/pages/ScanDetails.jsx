@@ -89,11 +89,11 @@ const ScanDetails = () => {
       document.body.appendChild(link);
 
       link.click();
-
       link.remove();
 
       window.URL.revokeObjectURL(url);
     } 
+    
     catch (error) {
       console.error("Failed to download report:", error);
     }
@@ -212,14 +212,16 @@ const ScanDetails = () => {
       transition={{ duration: 0.4, ease: "easeOut" }}
     >
       {/* Section A — Back Button + Summary Banner */}
-      <button className="details-back-btn" onClick={() => navigate("/")}>
-        <ArrowLeft size={16} />
-        Dashboard
-      </button>
+      <div classname="details-btns">
+        <button className="details-back-btn" onClick={() => navigate("/")}>
+          <ArrowLeft size={16} />
+          Dashboard
+        </button>
 
-      <button className="download-report-btn" disabled={downloading} onClick={handleDownload}>
-       <DownloadIcon size={18} /> {downloading ? "Generating..." : "Download Report"}
-      </button>
+        <button className="download-report-btn" disabled={downloading} onClick={handleDownload}>
+        <DownloadIcon size={18} /> {downloading ? "Generating..." : "Download Report"}
+        </button>
+      </div>
 
       <div className="details-summary">
         <div className="details-summary-main">

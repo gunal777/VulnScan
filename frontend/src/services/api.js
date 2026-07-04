@@ -27,7 +27,7 @@ const scanAPI = {
   },
 
   downloadReport(id) {
-    return api.get(`/report/${id}/export`, {
+    return api.get(`/scans/report/${id}/export`, {
       responseType: "blob",
     });
   },

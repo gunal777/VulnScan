@@ -86,7 +86,6 @@ const exportScanReport = (scan, res) => {
     const savedY = doc.y;
     const savedX = doc.x;
     
-    // 🚀 SAFETY: Temporarily lift top margin constraints during header drawing
     const oldTopMargin = doc.page.margins.top;
     doc.page.margins.top = 0;
 
@@ -194,7 +193,6 @@ const exportScanReport = (scan, res) => {
       ["Scan Status", scan.status],
     ];
 
-    // 🚀 FIX: Clean up label rendering alignments
     coverMeta.forEach(([label, value]) => {
       doc
         .font("Helvetica-Bold")
@@ -573,7 +571,7 @@ const exportScanReport = (scan, res) => {
   doc.fontSize(FONT.caption).text("Version: 1.0", { align: "center", width: CONTENT_WIDTH });
   doc.fontSize(FONT.caption).text("https://github.com/vulnscan", { align: "center", width: CONTENT_WIDTH });
 
-  // 🚀 8. FOOTER MANAGER: Buffer Stamping Engine
+  //8. FOOTER MANAGER
   const range = doc.bufferedPageRange();
   for (let i = 0; i < range.count; i++) {
     doc.switchToPage(i);
@@ -582,7 +580,7 @@ const exportScanReport = (scan, res) => {
     const savedY = doc.y;
     const savedX = doc.x;
 
-    // 🔥 CRITICAL FIX: Temporarily disable bottom margin calculation rules 
+    //Temporarily disablling bottom margin calculation rules 
     // to stop PDFKit from auto-generating extra blank pages at page ends.
     const oldBottomMargin = doc.page.margins.bottom;
     doc.page.margins.bottom = 0;

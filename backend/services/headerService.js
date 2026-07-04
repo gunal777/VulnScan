@@ -2,13 +2,16 @@ const axios = require("axios");
 const https = require("https");
 
 const WAF_SIGNATURES = [
-  { vendor: "Cloudflare", indicators: ["cf-ray", "cf-mitigated", "cf-cache-status"] },
-  { vendor: "Akamai", indicators: ["akamai-origin-hop", "x-akamai-transformed", "x-check-cacheable"] },
-  { vendor: "Imperva", indicators: ["x-iinfo", "x-cdn"] },
-  { vendor: "Sucuri", indicators: ["x-sucuri-id", "x-sucuri-cache"] },
-  { vendor: "AWS CloudFront", indicators: ["x-amz-cf-id", "x-amz-cf-pop"] },
+  { vendor: "Cloudflare", indicators: ["cf-ray", "cf-cache-status", "cf-mitigated"] },
+  { vendor: "Akamai", indicators: ["akamai-origin-hop", "x-akamai-transformed", "akamai-cache-status"] },
+  { vendor: "Imperva", indicators: ["x-iinfo"] },
+  { vendor: "Sucuri", indicators: ["x-sucuri-id", "x-sucuri-cache", "x-sucuri-block"] },
+  { vendor: "AWS CloudFront / AWS WAF", indicators: ["x-amz-cf-id", "x-amz-cf-pop"] },
   { vendor: "F5 BIG-IP", indicators: ["x-wa-info", "x-cnection"] },
   { vendor: "Barracuda", indicators: ["x-barracuda-connect", "x-barracuda-start-time"] },
+  { vendor: "Azure Front Door", indicators: ["x-azure-ref"] },
+  { vendor: "Fastly", indicators: ["x-served-by", "fastly-debug-digest", "x-cache-hits"] },
+  { vendor: "Google Cloud Armor", indicators: ["x-cloud-trace-context"] },
 ];
 
 const detectWAF = (headers) => {
@@ -65,7 +68,9 @@ const headerScan = async (target, ports) => {
     status = response.status;
     headers = response.headers;
     finalUrl = response.request?.res?.responseUrl || url;
-  } catch (error) {
+  } 
+  
+  catch (error) {
     if (error.response) {
       status = error.response.status;
       headers = error.response.headers;
@@ -85,6 +90,16 @@ const headerScan = async (target, ports) => {
 
   const findings = [];
 
+  if (status === 403) {
+    findings.push({
+      source: "header-scan",
+      category: "Infrastructure",
+      title: "Access Restricted",
+      severity: "Info",
+      description: "Server returned HTTP 403 Forbidden. Target may be protected by a WAF or access control.",
+    });
+  }
+
   // --- WAF ---
   const waf = detectWAF(headers);
   if (waf.detected) {
@@ -95,16 +110,8 @@ const headerScan = async (target, ports) => {
       severity: "Info",
       description: `${waf.vendor} Web Application Firewall detected.`,
     });
-  }
 
-  if (status === 403) {
-    findings.push({
-      source: "header-scan",
-      category: "Infrastructure",
-      title: "Access Restricted",
-      severity: "Info",
-      description: "Server returned HTTP 403 Forbidden. Target may be protected by a WAF or access control.",
-    });
+    return {findings, status};
   }
 
   if (finalUrl !== url) {

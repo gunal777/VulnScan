@@ -85,6 +85,10 @@ const exportScanReport = (scan, res) => {
 
     const savedY = doc.y;
     const savedX = doc.x;
+    
+    // 🚀 SAFETY: Temporarily lift top margin constraints during header drawing
+    const oldTopMargin = doc.page.margins.top;
+    doc.page.margins.top = 0;
 
     doc
       .font("Helvetica-Bold")
@@ -93,7 +97,7 @@ const exportScanReport = (scan, res) => {
       .text("VulnScan", MARGIN, MARGIN - 10, { continued: true })
       .font("Helvetica")
       .fillColor(COLORS.gray)
-      .text("  |  Vulnerability Assessment Report", { lineBreak: false });
+      .text("  |  Vulnerability Assessment Report");
 
     doc
       .moveTo(MARGIN, MARGIN + 8)
@@ -103,6 +107,7 @@ const exportScanReport = (scan, res) => {
       .stroke();
 
     doc.lineWidth(1); // reset
+    doc.page.margins.top = oldTopMargin;
 
     doc.x = savedX;
     doc.y = savedY;
@@ -119,7 +124,6 @@ const exportScanReport = (scan, res) => {
     setCursorToContentTop();
   });
 
-  
   const drawSectionTitle = (title) => {
     doc
       .font("Helvetica-Bold")
@@ -140,8 +144,7 @@ const exportScanReport = (scan, res) => {
     doc.y = lineY + 10;
   };
 
-  // Title height constant used by callers for pre-measurement
-  const SECTION_TITLE_HEIGHT = FONT.section + 18; // font size + underline + gap
+  const SECTION_TITLE_HEIGHT = FONT.section + 18;
 
 
   // 1. COVER PAGE
@@ -168,7 +171,6 @@ const exportScanReport = (scan, res) => {
         width: CONTENT_WIDTH,
       });
 
-
     const dividerY = doc.y + 20;
     doc
       .moveTo(PAGE_WIDTH / 2 - 80, dividerY)
@@ -179,7 +181,7 @@ const exportScanReport = (scan, res) => {
 
     doc.y = dividerY + 30;
 
-    const metaX = PAGE_WIDTH / 2 - 110;
+    const metaX = PAGE_WIDTH / 2 - 130;
     const metaValX = PAGE_WIDTH / 2 + 10;
     const lineHeight = 22;
     let my = doc.y;
@@ -192,17 +194,18 @@ const exportScanReport = (scan, res) => {
       ["Scan Status", scan.status],
     ];
 
+    // 🚀 FIX: Clean up label rendering alignments
     coverMeta.forEach(([label, value]) => {
       doc
         .font("Helvetica-Bold")
         .fontSize(FONT.body)
         .fillColor(COLORS.gray)
-        .text(label, metaX, my, { width: 110, align: "right", lineBreak: false });
+        .text(label, metaX, my, { width: 120, align: "right" });
 
       doc
         .font("Helvetica")
         .fillColor(COLORS.black)
-        .text(value || "N/A", metaValX, my, { lineBreak: false });
+        .text(value || "N/A", metaValX, my, { width: 200, align: "left" });
 
       my += lineHeight;
     });
@@ -211,12 +214,12 @@ const exportScanReport = (scan, res) => {
       .font("Helvetica-Bold")
       .fontSize(FONT.body)
       .fillColor(COLORS.gray)
-      .text("Risk Score", metaX, my, { width: 110, align: "right", lineBreak: false });
+      .text("Risk Score", metaX, my, { width: 120, align: "right" });
 
     doc
       .font("Helvetica-Bold")
       .fillColor(riskColor(scan.riskScore))
-      .text(`${scan.riskScore}/100 (${riskLabel(scan.riskScore)})`, metaValX, my, { lineBreak: false });
+      .text(`${scan.riskScore}/100 (${riskLabel(scan.riskScore)})`, metaValX, my, { width: 200, align: "left" });
 
     my += lineHeight + 40;
 
@@ -231,11 +234,9 @@ const exportScanReport = (scan, res) => {
   };
 
   drawCoverPage();
-
   doc.addPage();
 
   // 2. EXECUTIVE SUMMARY
-
   const findingsCount = scan.findings?.length || 0;
   const portsCount = scan.ports?.length || 0;
   const overallRisk = riskLabel(scan.riskScore);
@@ -248,8 +249,6 @@ const exportScanReport = (scan, res) => {
     ? scan.ssl.valid ? COLORS.green : COLORS.red
     : COLORS.gray;
 
-  // Executive Summary is always on a fresh page (follows cover page addPage),
-  // so no ensureSpace needed here.
   drawSectionTitle("Executive Summary");
 
   doc
@@ -274,87 +273,45 @@ const exportScanReport = (scan, res) => {
   const cardY = doc.y;
 
   const dashboardCards = [
-    {
-      label: "Risk Score",
-      value: `${scan.riskScore} / 100`,
-      sub: overallRisk,
-      color: riskColor(scan.riskScore),
-    },
-    {
-      label: "Open Ports",
-      value: `${portsCount}`,
-      sub: null,
-      color: COLORS.blue,
-    },
-    {
-      label: "Findings",
-      value: `${findingsCount}`,
-      sub: null,
-      color: findingsCount > 0 ? COLORS.orange : COLORS.green,
-    },
-    {
-      label: "SSL",
-      value: sslStatus,
-      sub: null,
-      color: sslStatusColor,
-    },
+    { label: "Risk Score", value: `${scan.riskScore} / 100`, sub: overallRisk, color: riskColor(scan.riskScore) },
+    { label: "Open Ports", value: `${portsCount}`, sub: null, color: COLORS.blue },
+    { label: "Findings", value: `${findingsCount}`, sub: null, color: findingsCount > 0 ? COLORS.orange : COLORS.green },
+    { label: "SSL", value: sslStatus, sub: null, color: sslStatusColor },
   ];
 
   dashboardCards.forEach((card, i) => {
     const cx = MARGIN + i * (cardW + cardGap);
 
-    // Card background
     doc
       .roundedRect(cx, cardY, cardW, cardH, 4)
       .fillAndStroke(COLORS.lightGray, COLORS.borderGray);
 
-    // Colored top accent strip
-    doc
-      .rect(cx, cardY, cardW, 3)
-      .fill(card.color);
+    doc.rect(cx, cardY, cardW, 3).fill(card.color);
 
-    // Value
     doc
       .font("Helvetica-Bold")
-      .fontSize(16)
+      .fontSize(14)
       .fillColor(card.color)
-      .text(card.value, cx + 6, cardY + 16, {
-        width: cardW - 12,
-        align: "center",
-        lineBreak: false,
-      });
+      .text(card.value, cx, cardY + 16, { width: cardW, align: "center" });
 
-    // Sub label (e.g. risk level name)
     if (card.sub) {
       doc
         .font("Helvetica")
         .fontSize(FONT.caption)
         .fillColor(card.color)
-        .text(card.sub, cx + 6, cardY + 36, {
-          width: cardW - 12,
-          align: "center",
-          lineBreak: false,
-        });
+        .text(card.sub, cx, cardY + 34, { width: cardW, align: "center" });
     }
 
-    // Label
     doc
       .font("Helvetica")
       .fontSize(FONT.caption)
       .fillColor(COLORS.gray)
-      .text(card.label, cx + 6, cardY + cardH - 18, {
-        width: cardW - 12,
-        align: "center",
-        lineBreak: false,
-      });
+      .text(card.label, cx, cardY + cardH - 18, { width: cardW, align: "center" });
   });
 
   doc.y = cardY + cardH + 20;
 
-
   // 3. PORT ANALYSIS
-
-  // Pre-measure: title + at least one header row + one data row
   const portTableMinHeight = SECTION_TITLE_HEIGHT + 24 + 24;
   ensureSpace(portTableMinHeight);
   drawSectionTitle("Port Analysis");
@@ -366,36 +323,20 @@ const exportScanReport = (scan, res) => {
 
   const drawPortTableHeader = () => {
     const y = doc.y;
-
-    // Header background
-    doc
-      .rect(MARGIN, y, tableWidth, rowHeight)
-      .fill(COLORS.blue);
-
-    doc
-      .font("Helvetica-Bold")
-      .fontSize(FONT.body)
-      .fillColor(COLORS.white);
-
-    doc.text("Port", colPositions[0] + 8, y + 5, { width: colWidths[0], lineBreak: false });
-    doc.text("State", colPositions[1] + 8, y + 5, { width: colWidths[1], lineBreak: false });
-    doc.text("Service", colPositions[2] + 8, y + 5, { width: colWidths[2], lineBreak: false });
-
+    doc.rect(MARGIN, y, tableWidth, rowHeight).fill(COLORS.blue);
+    doc.font("Helvetica-Bold").fontSize(FONT.body).fillColor(COLORS.white);
+    doc.text("Port", colPositions[0] + 8, y + 5, { width: colWidths[0] });
+    doc.text("State", colPositions[1] + 8, y + 5, { width: colWidths[1] });
+    doc.text("Service", colPositions[2] + 8, y + 5, { width: colWidths[2] });
     doc.y = y + rowHeight;
   };
 
   const drawPortRow = (port, index) => {
     const y = doc.y;
-    const isAlt = index % 2 === 1;
-
-    // Row background
-    if (isAlt) {
-      doc
-        .rect(MARGIN, y, tableWidth, rowHeight)
-        .fill(COLORS.lightGray);
+    if (index % 2 === 1) {
+      doc.rect(MARGIN, y, tableWidth, rowHeight).fill(COLORS.lightGray);
     }
 
-    // Bottom border
     doc
       .moveTo(MARGIN, y + rowHeight)
       .lineTo(MARGIN + tableWidth, y + rowHeight)
@@ -405,12 +346,11 @@ const exportScanReport = (scan, res) => {
 
     doc.lineWidth(1);
 
-    // Port number
     doc
       .font("Helvetica")
       .fontSize(FONT.body)
       .fillColor(COLORS.black)
-      .text(String(port.port), colPositions[0] + 8, y + 5, { width: colWidths[0], lineBreak: false });
+      .text(String(port.port), colPositions[0] + 8, y + 5, { width: colWidths[0] });
 
     let stateColor = COLORS.red;
     if (port.state === "open") stateColor = COLORS.green;
@@ -419,91 +359,44 @@ const exportScanReport = (scan, res) => {
     doc
       .font("Helvetica-Bold")
       .fillColor(stateColor)
-      .text(port.state, colPositions[1] + 8, y + 5, { width: colWidths[1], lineBreak: false });
+      .text(port.state, colPositions[1] + 8, y + 5, { width: colWidths[1] });
 
-    // Service
     doc
       .font("Helvetica")
       .fillColor(COLORS.black)
-      .text(port.service || "Unknown", colPositions[2] + 8, y + 5, { width: colWidths[2], lineBreak: false });
+      .text(port.service || "Unknown", colPositions[2] + 8, y + 5, { width: colWidths[2] });
 
     doc.y = y + rowHeight;
   };
 
   if (!scan.ports || scan.ports.length === 0) {
-    doc
-      .font("Helvetica")
-      .fontSize(FONT.body)
-      .fillColor(COLORS.gray)
-      .text("No ports were detected during this scan.");
+    doc.font("Helvetica").fontSize(FONT.body).fillColor(COLORS.gray).text("No ports were detected during this scan.");
   } else {
     drawPortTableHeader();
-
-    // Left and right vertical borders for header
-    doc
-      .moveTo(MARGIN, doc.y - rowHeight)
-      .lineTo(MARGIN, doc.y)
-      .strokeColor(COLORS.borderGray)
-      .lineWidth(0.5)
-      .stroke();
-    doc
-      .moveTo(MARGIN + tableWidth, doc.y - rowHeight)
-      .lineTo(MARGIN + tableWidth, doc.y)
-      .strokeColor(COLORS.borderGray)
-      .lineWidth(0.5)
-      .stroke();
-
-    doc.lineWidth(1);
-
     scan.ports.forEach((port, index) => {
       if (ensureSpace(rowHeight + 5)) {
         drawPortTableHeader();
       }
       drawPortRow(port, index);
     });
-
-    // Bottom border for table
-    doc
-      .moveTo(MARGIN, doc.y)
-      .lineTo(MARGIN + tableWidth, doc.y)
-      .strokeColor(COLORS.borderGray)
-      .lineWidth(0.5)
-      .stroke();
-
-    doc.lineWidth(1);
   }
 
   doc.moveDown(1.2);
 
-
   // 4. SSL / TLS CERTIFICATE
-  // Pre-measure SSL content so title + content stay together
   const sslContentHeight = !scan.ssl ? 50 : (16 + 28 + 22 * 5 + 16 + 10);
   ensureSpace(SECTION_TITLE_HEIGHT + sslContentHeight);
   drawSectionTitle("SSL/TLS Certificate");
 
   if (!scan.ssl) {
-    // No SSL — warning card
     const warnH = 40;
     ensureSpace(warnH + 10);
-
     const wy = doc.y;
-    doc
-      .roundedRect(MARGIN, wy, CONTENT_WIDTH, warnH, 4)
-      .fillAndStroke("#FEF2F2", COLORS.red);
-
-    doc
-      .font("Helvetica-Bold")
-      .fontSize(FONT.body)
-      .fillColor(COLORS.red)
-      .text("No SSL/TLS certificate information available.", MARGIN + 14, wy + 13, {
-        width: CONTENT_WIDTH - 28,
-      });
-
+    doc.roundedRect(MARGIN, wy, CONTENT_WIDTH, warnH, 4).fillAndStroke("#FEF2F2", COLORS.red);
+    doc.font("Helvetica-Bold").fontSize(FONT.body).fillColor(COLORS.red).text("No SSL/TLS certificate information available.", MARGIN + 14, wy + 13);
     doc.y = wy + warnH + 10;
   } else {
     const ssl = scan.ssl;
-
     const sslFields = [
       ["Issuer", ssl.issuer || "N/A"],
       ["Subject", ssl.subject || "N/A"],
@@ -517,17 +410,8 @@ const exportScanReport = (scan, res) => {
     const badgeRowH = 28;
     const sslCardH = sslCardPadding + badgeRowH + sslLineH * sslFields.length + sslCardPadding;
 
-    // Space already checked before title; this is a safety fallback
-    // for dynamically-computed card heights that may differ.
-    ensureSpace(sslCardH + 10);
-
     const sslY = doc.y;
-
-    doc
-      .roundedRect(MARGIN, sslY, CONTENT_WIDTH, sslCardH, 4)
-      .strokeColor(COLORS.borderGray)
-      .lineWidth(1)
-      .stroke();
+    doc.roundedRect(MARGIN, sslY, CONTENT_WIDTH, sslCardH, 4).strokeColor(COLORS.borderGray).lineWidth(1).stroke();
 
     const badgeText = ssl.valid ? "VALID" : "INVALID";
     const badgeColor = ssl.valid ? COLORS.green : COLORS.red;
@@ -536,28 +420,9 @@ const exportScanReport = (scan, res) => {
     const badgeX = MARGIN + CONTENT_WIDTH - badgeW - sslCardPadding;
     const badgeY = sslY + sslCardPadding;
 
-    doc
-      .roundedRect(badgeX, badgeY, badgeW, badgeH, 10)
-      .fill(badgeColor);
-
-    doc
-      .font("Helvetica-Bold")
-      .fontSize(FONT.caption)
-      .fillColor(COLORS.white)
-      .text(badgeText, badgeX, badgeY + 5, {
-        width: badgeW,
-        align: "center",
-        lineBreak: false,
-      });
-
-    doc
-      .font("Helvetica-Bold")
-      .fontSize(FONT.subtitle)
-      .fillColor(COLORS.black)
-      .text("Certificate Status", MARGIN + sslCardPadding, sslY + sslCardPadding + 2, {
-        lineBreak: false,
-      });
-
+    doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 10).fill(badgeColor);
+    doc.font("Helvetica-Bold").fontSize(FONT.caption).fillColor(COLORS.white).text(badgeText, badgeX, badgeY + 5, { width: badgeW, align: "center" });
+    doc.font("Helvetica-Bold").fontSize(FONT.subtitle).fillColor(COLORS.black).text("Certificate Status", MARGIN + sslCardPadding, sslY + sslCardPadding + 2);
 
     let fieldY = sslY + sslCardPadding + badgeRowH;
     const labelX = MARGIN + sslCardPadding;
@@ -565,25 +430,14 @@ const exportScanReport = (scan, res) => {
     const valueW = CONTENT_WIDTH - sslCardPadding * 2 - 120;
 
     sslFields.forEach(([label, value]) => {
-      doc
-        .font("Helvetica-Bold")
-        .fontSize(FONT.body)
-        .fillColor(COLORS.gray)
-        .text(label, labelX, fieldY + 3, { width: 110, lineBreak: false });
-
+      doc.font("Helvetica-Bold").fontSize(FONT.body).fillColor(COLORS.gray).text(label, labelX, fieldY + 3, { width: 110 });
       let valColor = COLORS.black;
       if (label === "Days Remaining" && ssl.expiresInDays != null) {
         if (ssl.expiresInDays < 15) valColor = COLORS.red;
         else if (ssl.expiresInDays < 30) valColor = COLORS.orange;
         else valColor = COLORS.green;
       }
-
-      doc
-        .font("Helvetica")
-        .fontSize(FONT.body)
-        .fillColor(valColor)
-        .text(value, valueX, fieldY + 3, { width: valueW });
-
+      doc.font("Helvetica").fontSize(FONT.body).fillColor(valColor).text(value, valueX, fieldY + 3, { width: valueW });
       fieldY += sslLineH;
     });
 
@@ -593,135 +447,60 @@ const exportScanReport = (scan, res) => {
   doc.moveDown(0.8);
 
   // 5. SECURITY FINDINGS
-  // Pre-measure: title + at least the first finding card or the "no findings" line
   const firstFindingEstimate = (!scan.findings || scan.findings.length === 0) ? 20 : 80;
   ensureSpace(SECTION_TITLE_HEIGHT + firstFindingEstimate);
   drawSectionTitle("Security Findings");
 
   if (!scan.findings || scan.findings.length === 0) {
-    doc
-      .font("Helvetica")
-      .fontSize(FONT.body)
-      .fillColor(COLORS.green)
-      .text("No vulnerabilities were detected during this scan.");
-  }
-
-  else {
+    doc.font("Helvetica").fontSize(FONT.body).fillColor(COLORS.green).text("No vulnerabilities were detected during this scan.");
+  } else {
     scan.findings.forEach((finding, index) => {
-
-      const innerWidth = CONTENT_WIDTH - 24; // 12px padding each side
+      const innerWidth = CONTENT_WIDTH - 24;
       const titleText = `${index + 1}. ${finding.title}`;
-      const titleH = doc.heightOfString(titleText, {
-        font: "Helvetica-Bold",
-        fontSize: 12,
-        width: innerWidth - 90, // leave room for badge
-      });
+      const titleH = doc.heightOfString(titleText, { font: "Helvetica-Bold", fontSize: 12, width: innerWidth - 90 });
       const categoryH = 14;
-      const descH = doc.heightOfString(finding.description || "N/A", {
-        font: "Helvetica",
-        fontSize: 10,
-        width: innerWidth,
-      });
-      const recLabel = "Recommendation: ";
+      const descH = doc.heightOfString(finding.description || "N/A", { font: "Helvetica", fontSize: 10, width: innerWidth });
       const recText = finding.recommendation || "N/A";
-      const recH = doc.heightOfString(recLabel + recText, {
-        font: "Helvetica",
-        fontSize: 10,
-        width: innerWidth,
-      });
+      const recH = doc.heightOfString("Recommendation: " + recText, { font: "Helvetica", fontSize: 10, width: innerWidth });
 
       const cardPadding = 12;
-      const innerSpacing = 8; // gap between sections inside card
+      const innerSpacing = 8;
       const cardH = cardPadding + titleH + innerSpacing + categoryH + innerSpacing + descH + innerSpacing + recH + cardPadding;
 
       ensureSpace(cardH + 12);
-
       const startY = doc.y;
 
-      // Card border
-      doc
-        .roundedRect(MARGIN, startY, CONTENT_WIDTH, cardH, 4)
-        .strokeColor(COLORS.borderGray)
-        .lineWidth(1)
-        .stroke();
-
-      // Left accent strip based on severity
-      const accentColor = severityColor(finding.severity);
-      doc
-        .rect(MARGIN, startY, 4, cardH)
-        .fill(accentColor);
+      doc.roundedRect(MARGIN, startY, CONTENT_WIDTH, cardH, 4).strokeColor(COLORS.borderGray).lineWidth(1).stroke();
+      doc.rect(MARGIN, startY, 4, cardH).fill(severityColor(finding.severity));
 
       let cy = startY + cardPadding;
       const textX = MARGIN + 14;
 
-      // ── Title ──
-      doc
-        .font("Helvetica-Bold")
-        .fontSize(12)
-        .fillColor(COLORS.black)
-        .text(titleText, textX, cy, {
-          width: innerWidth - 90,
-        });
+      doc.font("Helvetica-Bold")
+         .fontSize(12)
+         .fillColor(COLORS.black)
+         .text(titleText, textX, cy, { width: innerWidth - 90 });
 
-      // ── Severity Badge (right-aligned) ──
       const badgeW = 72;
       const badgeH = 18;
       const badgeX = MARGIN + CONTENT_WIDTH - badgeW - 12;
-      const badgeColor = severityColor(finding.severity);
 
-      doc
-        .roundedRect(badgeX, startY + cardPadding, badgeW, badgeH, 9)
-        .fill(badgeColor);
-
-      doc
-        .font("Helvetica-Bold")
-        .fontSize(FONT.caption)
-        .fillColor(COLORS.white)
-        .text(
-          (finding.severity || "Info").toUpperCase(),
-          badgeX,
-          startY + cardPadding + 4,
-          { width: badgeW, align: "center", lineBreak: false }
-        );
+      doc.roundedRect(badgeX, startY + cardPadding, badgeW, badgeH, 9).fill(severityColor(finding.severity));
+      doc.font("Helvetica-Bold")
+         .fontSize(FONT.caption)
+         .fillColor(COLORS.white)
+         .text((finding.severity || "Info").toUpperCase(), badgeX, startY + cardPadding + 4, { width: badgeW, align: "center" });
 
       cy += titleH + innerSpacing;
 
-      // ── Category ──
-      doc
-        .font("Helvetica")
-        .fontSize(10)
-        .fillColor(COLORS.blue)
-        .text(`Category: ${finding.category}`, textX, cy, {
-          width: innerWidth,
-          lineBreak: false,
-        });
-
+      doc.font("Helvetica").fontSize(10).fillColor(COLORS.blue).text(`Category: ${finding.category}`, textX, cy, { width: innerWidth });
       cy += categoryH + innerSpacing;
 
-      // ── Description ──
-      doc
-        .font("Helvetica")
-        .fontSize(10)
-        .fillColor(COLORS.black)
-        .text(finding.description || "N/A", textX, cy, {
-          width: innerWidth,
-        });
-
+      doc.font("Helvetica").fontSize(10).fillColor(COLORS.black).text(finding.description || "N/A", textX, cy, { width: innerWidth });
       cy += descH + innerSpacing;
 
-      // ── Recommendation ──
-      doc
-        .font("Helvetica-Bold")
-        .fontSize(10)
-        .fillColor(COLORS.black)
-        .text("Recommendation: ", textX, cy, {
-          width: innerWidth,
-          continued: true,
-        });
-
-      doc
-        .font("Helvetica")
-        .text(recText);
+      doc.font("Helvetica-Bold").fontSize(10).fillColor(COLORS.black).text("Recommendation: ", textX, cy, { width: innerWidth, continued: true });
+      doc.font("Helvetica").text(recText);
 
       doc.y = startY + cardH + 8;
     });
@@ -729,18 +508,11 @@ const exportScanReport = (scan, res) => {
 
   doc.moveDown(0.6);
 
-
   // 6. OVERALL RECOMMENDATIONS
-  // Build recommendations list BEFORE drawing the title so we can pre-measure
-
   const recommendations = [];
-
   if (scan.findings?.length) {
     scan.findings.forEach((finding) => {
-      if (
-        finding.recommendation &&
-        !recommendations.includes(finding.recommendation)
-      ) {
+      if (finding.recommendation && !recommendations.includes(finding.recommendation)) {
         recommendations.push(finding.recommendation);
       }
     });
@@ -748,191 +520,88 @@ const exportScanReport = (scan, res) => {
 
   const openPorts = scan.ports?.filter((p) => p.state === "open") || [];
   if (openPorts.length > 5) {
-    recommendations.push(
-      "Review all exposed ports and close any unnecessary services."
-    );
+    recommendations.push("Review all exposed ports and close any unnecessary services.");
   }
-
   if (scan.ssl && scan.ssl.expiresInDays < 30) {
-    recommendations.push(
-      "Renew the SSL/TLS certificate before expiration."
-    );
+    recommendations.push("Renew the SSL/TLS certificate before expiration.");
   }
-
   if (!scan.ssl) {
-    recommendations.push(
-      "Enable HTTPS and deploy a valid SSL/TLS certificate."
-    );
+    recommendations.push("Enable HTTPS and deploy a valid SSL/TLS certificate.");
   }
-
   if (recommendations.length === 0) {
-    recommendations.push(
-      "No major security issues were detected. Continue performing periodic vulnerability assessments and keep all services up to date."
-    );
+    recommendations.push("No major security issues were detected. Continue performing periodic vulnerability assessments.");
   }
 
-  // Now pre-measure and draw title + bullets together
   const estimatedRecHeight = recommendations.length * 22;
   ensureSpace(SECTION_TITLE_HEIGHT + estimatedRecHeight + 20);
   drawSectionTitle("Overall Recommendations");
 
   recommendations.forEach((recommendation) => {
-    const recHeight = doc.heightOfString(recommendation, {
-      font: "Helvetica",
-      fontSize: FONT.body,
-      width: CONTENT_WIDTH - 30,
-    });
-
+    const recHeight = doc.heightOfString(recommendation, { font: "Helvetica", fontSize: FONT.body, width: CONTENT_WIDTH - 30 });
     ensureSpace(recHeight + 12);
 
-    doc
-      .circle(MARGIN + 6, doc.y + 6, 2.5)
-      .fill(COLORS.blue);
-
-    doc
-      .font("Helvetica")
-      .fontSize(FONT.body)
-      .fillColor(COLORS.black)
-      .text(recommendation, MARGIN + 18, doc.y, {
-        width: CONTENT_WIDTH - 30,
-      });
-
+    doc.circle(MARGIN + 6, doc.y + 6, 2.5).fill(COLORS.blue);
+    doc.font("Helvetica").fontSize(FONT.body).fillColor(COLORS.black).text(recommendation, MARGIN + 18, doc.y, { width: CONTENT_WIDTH - 30 });
     doc.moveDown(0.4);
   });
 
   doc.moveDown(1.2);
 
-
   // 7. FINAL ASSESSMENT
-
   let assessment = "";
+  if (scan.riskScore >= 80) assessment = "The scanned target presents a critical security posture and requires immediate remediation.";
+  else if (scan.riskScore >= 50) assessment = "The scanned target contains several high-risk issues that should be addressed as soon as possible.";
+  else if (scan.riskScore >= 21) assessment = "The scanned target contains moderate security issues. Recommended improvements should be implemented.";
+  else assessment = "The scanned target demonstrates a strong security posture with only minor observations recorded.";
 
-  if (scan.riskScore >= 80) {
-    assessment = "The scanned target presents a critical security posture and requires immediate remediation before being considered secure.";
-  } else if (scan.riskScore >= 50) {
-    assessment = "The scanned target contains several high-risk issues that should be addressed as soon as possible.";
-  } else if (scan.riskScore >= 21) {
-    assessment = "The scanned target contains moderate security issues. Recommended improvements should be implemented.";
-  } else {
-    assessment = "The scanned target demonstrates a strong security posture with only minor observations recorded.";
-  }
-
-  const assessH = doc.heightOfString(assessment, {
-    font: "Helvetica",
-    fontSize: FONT.body,
-    width: CONTENT_WIDTH,
-  });
-
-  // Single combined check: title + assessment text + end-of-report block
+  const assessH = doc.heightOfString(assessment, { font: "Helvetica", fontSize: FONT.body, width: CONTENT_WIDTH });
   ensureSpace(SECTION_TITLE_HEIGHT + assessH + 60);
   drawSectionTitle("Final Assessment");
 
-  doc
-    .font("Helvetica")
-    .fontSize(FONT.body)
-    .fillColor(COLORS.black)
-    .text(assessment, {
-      width: CONTENT_WIDTH,
-      align: "justify",
-    });
-
-  // End-of-report divider — check BEFORE advancing cursor
-  const endReportHeight = 45;
-  ensureSpace(endReportHeight);
+  doc.font("Helvetica").fontSize(FONT.body).fillColor(COLORS.black).text(assessment, { width: CONTENT_WIDTH, align: "justify" });
+  
+  ensureSpace(45);
   doc.moveDown(1);
-
   const eorDivY = doc.y;
-  doc
-    .moveTo(PAGE_WIDTH / 2 - 60, eorDivY)
-    .lineTo(PAGE_WIDTH / 2 + 60, eorDivY)
-    .strokeColor(COLORS.borderGray)
-    .lineWidth(1)
-    .stroke();
+  doc.moveTo(PAGE_WIDTH / 2 - 60, eorDivY).lineTo(PAGE_WIDTH / 2 + 60, eorDivY).strokeColor(COLORS.borderGray).lineWidth(1).stroke();
 
   doc.y = eorDivY + 14;
-
-  doc
-    .font("Helvetica")
-    .fontSize(FONT.body)
-    .fillColor(COLORS.gray)
-    .text("— End of Report —", {
-      align: "center",
-      width: CONTENT_WIDTH,
-    });
-
+  doc.font("Helvetica").fontSize(FONT.body).fillColor(COLORS.gray).text("— End of Report —", { align: "center", width: CONTENT_WIDTH });
+  
   doc.moveDown(1);
+  doc.font("Helvetica").fontSize(FONT.caption).fillColor(COLORS.gray).text("Generated by VulnScan", { align: "center", width: CONTENT_WIDTH });
+  doc.fontSize(FONT.caption).text("Version: 1.0", { align: "center", width: CONTENT_WIDTH });
+  doc.fontSize(FONT.caption).text("https://github.com/vulnscan", { align: "center", width: CONTENT_WIDTH });
 
-  doc
-    .font("Helvetica")
-    .fontSize(FONT.caption)
-    .fillColor(COLORS.gray)
-    .text("Generated by VulnScan", {
-      align: "center",
-      width: CONTENT_WIDTH,
-    });
-
-  doc
-    .fontSize(FONT.caption)
-    .text("Version: 1.0", {
-      align: "center",
-      width: CONTENT_WIDTH,
-    });
-
-  doc
-    .fontSize(FONT.caption)
-    .text("https://github.com/vulnscan", {
-      align: "center",
-      width: CONTENT_WIDTH,
-    });
-
-
-  // 8. BUFFERED FOOTERS — stamp on all content pages
-
+  // 🚀 8. FOOTER MANAGER: Buffer Stamping Engine
   const range = doc.bufferedPageRange();
-
   for (let i = 0; i < range.count; i++) {
     doc.switchToPage(i);
+    if (i === 0) continue; // Skip cover page
 
-    if (i === 0) continue; // skip cover page footer
-
-    // Save cursor so footer drawing doesn't trigger extra pages
     const savedY = doc.y;
     const savedX = doc.x;
 
+    // 🔥 CRITICAL FIX: Temporarily disable bottom margin calculation rules 
+    // to stop PDFKit from auto-generating extra blank pages at page ends.
+    const oldBottomMargin = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
+
     const footerY = PAGE_HEIGHT - 38;
 
-    // Top line
-    doc
-      .moveTo(MARGIN, footerY)
-      .lineTo(PAGE_WIDTH - MARGIN, footerY)
-      .strokeColor(COLORS.borderGray)
-      .lineWidth(0.5)
-      .stroke();
-
+    doc.moveTo(MARGIN, footerY).lineTo(PAGE_WIDTH - MARGIN, footerY).strokeColor(COLORS.borderGray).lineWidth(0.5).stroke();
     doc.lineWidth(1);
 
-    // Centered text
-    doc
-      .font("Helvetica")
-      .fontSize(FONT.caption)
-      .fillColor(COLORS.gray)
-      .text("Generated by VulnScan", MARGIN, footerY + 6, {
-        width: CONTENT_WIDTH,
-        align: "center",
-        lineBreak: false,
-      });
+    doc.font("Helvetica")
+       .fontSize(FONT.caption)
+       .fillColor(COLORS.gray)
+       .text("Generated by VulnScan", MARGIN, footerY + 6, { width: CONTENT_WIDTH, align: "center" });
 
-    // Bottom line
-    doc
-      .moveTo(MARGIN, footerY + 20)
-      .lineTo(PAGE_WIDTH - MARGIN, footerY + 20)
-      .strokeColor(COLORS.borderGray)
-      .lineWidth(0.5)
-      .stroke();
-
+    doc.moveTo(MARGIN, footerY + 20).lineTo(PAGE_WIDTH - MARGIN, footerY + 20).strokeColor(COLORS.borderGray).lineWidth(0.5).stroke();
     doc.lineWidth(1);
 
-    // Restore cursor to prevent PDFKit from adding a blank page
+    // Restore boundary safety states
+    doc.page.margins.bottom = oldBottomMargin;
     doc.x = savedX;
     doc.y = savedY;
   }

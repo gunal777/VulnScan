@@ -74,7 +74,7 @@ const Dashboard = () => {
         date: new Date(scan.createdAt).toLocaleDateString("en-US", {
           month: "short",
           day: "numeric",
-        }),
+        }) + ` ${new Date(scan.createdAt).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit', hour12: false })}`,
         riskScore: scan.riskScore || 0,
         target: scan.target,
       }));
@@ -266,7 +266,11 @@ const Dashboard = () => {
                 />
                 <XAxis
                   dataKey="date"
-                  tick={{ fill: "var(--text-muted)", fontSize: 12 }}
+                  tick={{ fill: "var(--text-muted)", fontSize: 10 }}
+                  interval="preserveStartEnd" 
+                  dx={-5}
+                  dy={5}
+                  angle={-15}
                   axisLine={{ stroke: "var(--border)" }}
                   tickLine={false}
                 />

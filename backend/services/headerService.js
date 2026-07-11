@@ -30,8 +30,8 @@ const headerScan = async (target, ports) => {
     const urlString = target.includes("://") ? target : `https://${target}`;
     const parsed = new URL(urlString);
     hostname = parsed.hostname;
-    pathname = parsed.pathname + parsed.search; 
-  } 
+    pathname = parsed.pathname + parsed.search;
+  }
   catch {
     hostname = target;
   }
@@ -44,7 +44,7 @@ const headerScan = async (target, ports) => {
   let url;
   if (target.includes("://")) {
     url = target;
-  } 
+  }
   else {
     url = hasHttps ? `https://${hostname}${pathname}` : `http://${hostname}${pathname}`;
   }
@@ -58,37 +58,46 @@ const headerScan = async (target, ports) => {
       timeout: 10000,
       httpsAgent: new https.Agent({ rejectUnauthorized: false }),
       maxRedirects: 5,
+      validateStatus: () => true,
       headers: {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-      "Accept-Language": "en-US,en;q=0.5"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5"
       }
     });
 
     status = response.status;
     headers = response.headers;
     finalUrl = response.request?.res?.responseUrl || url;
-  } 
-  
+  }
   catch (error) {
-    if (error.response) {
-      status = error.response.status;
-      headers = error.response.headers;
-    } else {
-      return {
-        findings: [{
-          source: "header-scan",
-          category: "Infrastructure",
-          title: "Connection Failed",
-          severity: "Info",
-          description: error.message,
-          recommendation: "Verify the target is reachable via HTTP/HTTPS.",
-        }],
-      };
-    }
+    return {
+      findings: [{
+        source: "header-scan",
+        category: "Infrastructure",
+        title: "Connection Failed",
+        severity: "Info",
+        description: error.message,
+        recommendation: "Verify the target is reachable via HTTP/HTTPS.",
+      }],
+    };
   }
 
   const findings = [];
+  const waf = detectWAF(headers);
+  const isAccessRestricted = status === 403 || status === 429 || status === 530;
+
+  if (waf.detected && isAccessRestricted) {
+    findings.push({
+      source: "header-scan",
+      category: "Infrastructure",
+      title: "Scan Intercepted by WAF",
+      severity: "Info",
+      description: `${waf.vendor} Web Application Firewall intercepted the request (HTTP ${status}). Further security header analysis has been suspended to prevent false positives.`,
+      recommendation: "Whitelist the scanner IP or sign requests if this target belongs to you."
+    });
+    return { status, findings };
+  }
 
   if (status === 403) {
     findings.push({
@@ -100,8 +109,6 @@ const headerScan = async (target, ports) => {
     });
   }
 
-  // --- WAF ---
-  const waf = detectWAF(headers);
   if (waf.detected) {
     findings.push({
       source: "header-scan",
@@ -110,8 +117,6 @@ const headerScan = async (target, ports) => {
       severity: "Info",
       description: `${waf.vendor} Web Application Firewall detected.`,
     });
-
-    return {findings, status};
   }
 
   if (finalUrl !== url) {
@@ -125,8 +130,6 @@ const headerScan = async (target, ports) => {
     });
   }
 
-  // --- Security Headers ---
-
   const CSP = headers["content-security-policy"];
   const reportOnlyCSP = headers["content-security-policy-report-only"];
 
@@ -139,7 +142,8 @@ const headerScan = async (target, ports) => {
       description: "Content-Security-Policy header is missing.",
       recommendation: "Implement a Content-Security-Policy header.",
     });
-  } else if (!CSP && reportOnlyCSP) {
+  } 
+  else if (!CSP && reportOnlyCSP) {
     findings.push({
       source: "header-scan",
       category: "Headers",
@@ -150,7 +154,6 @@ const headerScan = async (target, ports) => {
     });
   }
 
-  // check if the CSP contains the frame-ancestors directive
   const cspString = ((CSP || "") + (reportOnlyCSP || "")).toLowerCase();
   const hasFrameAncestors = cspString.includes("frame-ancestors");
   const xFrameOptions = headers["x-frame-options"];
@@ -177,7 +180,6 @@ const headerScan = async (target, ports) => {
     });
   }
 
-
   if (!headers["x-content-type-options"]) {
     findings.push({
       source: "header-scan",
@@ -189,8 +191,7 @@ const headerScan = async (target, ports) => {
     });
   }
 
-
-  if (url.startsWith("https://") && !headers["strict-transport-security"]) {
+  if (finalUrl.startsWith("https://") && !headers["strict-transport-security"]) {
     findings.push({
       source: "header-scan",
       category: "Headers",
@@ -200,8 +201,6 @@ const headerScan = async (target, ports) => {
       recommendation: "Enable HSTS to enforce HTTPS.",
     });
   }
-
-  // --- Information Disclosure ---
 
   if (headers["server"]) {
     const knownTechnologies = ["apache", "nginx", "iis", "tomcat", "jetty", "express"];
@@ -218,8 +217,7 @@ const headerScan = async (target, ports) => {
         description: `Server header exposes backend technology and version: ${headers["server"]}`,
         recommendation: "Remove or obfuscate the Server header to hide version details.",
       });
-    } 
-    
+    }
     else if (leaksTech) {
       findings.push({
         source: "header-scan",
